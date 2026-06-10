@@ -103,6 +103,14 @@ html, body {
   box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
   text-align: center;
 }
+/* the join screen sits on the right so the showcase car stays visible */
+#join {
+  left: auto; right: 64px; transform: translateY(-50%);
+}
+@media (max-width: 900px) {
+  #join { left: 50%; right: auto; transform: translate(-50%, -50%); }
+}
+
 .kicker { font-size: 10px; letter-spacing: .4em; color: #e10600; font-weight: 800; text-align: left; }
 .panel h1 {
   font-size: 27px; margin-bottom: 2px;
