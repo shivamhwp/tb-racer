@@ -18,7 +18,7 @@ class RoomCore {
     this.players = new Map();
     this.nextId = 1;
     this.tickNo = 0;
-    this.game = { state: 'lobby', mode: 'contact', lapsTotal: 3, countdownEnd: 0, raceStart: 0, firstFinishAt: 0 };
+    this.game = { state: 'lobby', mode: 'contact', lapsTotal: 3, countdownEnd: 0, raceStart: 0, firstFinishAt: 0, allDoneAt: 0 };
   }
 
   get size() { return this.players.size; }
@@ -59,6 +59,7 @@ class RoomCore {
       p.car = SH.makeCar(g.x, g.y, g.angle, g.idx);
       p.lapsDone = 0;
       p.bestLap = null;
+      p.lapTimes = [];
       p.finishTime = null;
       p.lastSeq = 0;
       p.input = { u: 0, d: 0, l: 0, r: 0, h: 0 };
@@ -66,6 +67,7 @@ class RoomCore {
     this.game.state = 'countdown';
     this.game.countdownEnd = now + 3500;
     this.game.firstFinishAt = 0;
+    this.game.allDoneAt = 0;
     this.sendMeta();
   }
 
@@ -86,7 +88,8 @@ class RoomCore {
       t: 'results',
       list: racers.map(p => ({
         name: p.name, color: p.color,
-        time: p.finishTime, best: p.bestLap, dnf: p.finishTime === null
+        time: p.finishTime, best: p.bestLap, laps: p.lapTimes || [],
+        dnf: p.finishTime === null
       }))
     });
     this.sendMeta();
@@ -206,15 +209,23 @@ class RoomCore {
       const racers = [...this.players.values()].filter(p => p.car);
       for (const p of racers) {
         const c = p.car;
-        const inp = c.finished ? { u: 0, d: 1, l: 0, r: 0, h: 0 } : p.input;
+        // after the flag: hands off the wheel — the car coasts over the line
+        // and drag/rolling resistance bring it to a natural stop
+        const inp = c.finished ? { u: 0, d: 0, l: 0, r: 0, h: 0 } : p.input;
         SH.stepCar(c, inp, DT);
         if (!c.finished) {
           const laps = SH.updateProgress(c);
           if (laps > p.lapsDone) {
             const lapTime = now - p.lapStart;
+            if (!p.lapTimes) p.lapTimes = [];
+            p.lapTimes.push(lapTime);
             if (p.bestLap === null || lapTime < p.bestLap) p.bestLap = lapTime;
             p.lapStart = now;
             p.lapsDone = laps;
+            this.broadcast({
+              t: 'lap', id: p.id, name: p.name, lap: laps, of: game.lapsTotal,
+              time: lapTime, best: p.bestLap, now
+            });
             if (laps >= game.lapsTotal) {
               c.finished = true;
               p.finishTime = now - game.raceStart;
@@ -230,9 +241,12 @@ class RoomCore {
           for (let j = i + 1; j < racers.length; j++)
             SH.collideCars(racers[i].car, racers[j].car);
       }
+      // once everyone is over the line, keep simulating a few seconds so the
+      // cars visibly coast to a stop before the results screen appears
       const allDone = racers.length > 0 && racers.every(p => p.car.finished);
+      if (allDone && !game.allDoneAt) game.allDoneAt = now;
       const timeout = game.firstFinishAt && now - game.firstFinishAt > 45000;
-      if (allDone || timeout || racers.length === 0) this.endRace();
+      if ((game.allDoneAt && now - game.allDoneAt > 4000) || timeout || racers.length === 0) this.endRace();
     }
 
     if (this.tickNo % SNAP_EVERY === 0 && (game.state === 'countdown' || game.state === 'racing' || game.state === 'finished')) {

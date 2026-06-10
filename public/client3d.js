@@ -17,7 +17,8 @@ const ui = {
   lobby: $('lobby'), lobbyTitle: $('lobbyTitle'), playerList: $('playerList'), modeSeg: $('modeSeg'), lapsSeg: $('lapsSeg'),
   roleBtn: $('roleBtn'), startBtn: $('startBtn'), lobbyHint: $('lobbyHint'),
   results: $('results'), resultsList: $('resultsList'), lobbyBtn: $('lobbyBtn'), resultsHint: $('resultsHint'),
-  fsBtn: $('fsBtn'), leaveBtn: $('leaveBtn')
+  fsBtn: $('fsBtn'), muteBtn: $('muteBtn'), leaveBtn: $('leaveBtn'),
+  curLapT: $('curLapT'), lastLapT: $('lastLapT'), bestLapT: $('bestLapT'), lapFlash: $('lapFlash')
 };
 
 // ---- State ----
@@ -31,6 +32,7 @@ let errX = 0, errY = 0, errA = 0;
 let keys = { u: 0, d: 0, l: 0, r: 0, h: 0 };
 let racing = false;
 let camMode = 0; // 0 chase, 1 close, 2 high
+let lapStartSrv = 0, myLastLap = null, myBestLap = null; // live lap timing (server clock)
 
 // ---- Helpers ----
 const wrapAng = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
@@ -359,36 +361,57 @@ for (let i = 0; i < N; i++) {
   }
 }
 
-// billboards along straights
+// billboards along straights — paddock gossip, immortalized in sponsor vinyl
 {
-  const texts = ['TB GRAND PRIX', 'DRS ZONE', 'THEO ♥ OBSIDIAN', 'TYRELLO TYRES', 'GOLD ARROW F1', 'FLAT OUT!'];
-  let placed = 0;
-  for (let i = 140; i < N && placed < texts.length; i += 30) {
-    if (curva[i] > 0.02) continue;
+  const texts = [
+    'TB GRAND PRIX',
+    'THEO ♥ ANTHROPIC',
+    'BEN LOVES REACT',
+    'MARIA IS BAD AT TWITTER',
+    "ALYSSA PAYS ME — CAN'T SAY MUCH 😨",
+    'PHASE IS JUST THE GOAT 🐐',
+    'MUNDAYS · THAT MAJESTIC HAIR',
+    'DRS ZONE'
+  ];
+  let placed = 0, lastBB = -1e9;
+  for (let i = 0; i < N && placed < texts.length; i++) {
+    if (curva[i] > 0.03 || i - lastBB < 50) continue;
+    lastBB = i;
     const s = SAM[i];
     const side = placed % 2 ? 1 : -1;
     const nx = -s.dy * side, ny = s.dx * side;
     const bb = new THREE.Group();
-    const tex = canvasTex(512, 128, (g, w, h) => {
+    const text = texts[placed];
+    const tex = canvasTex(1024, 256, (g, w, h) => {
       g.fillStyle = ['#0e3e8e', '#7c2d8e', '#0e6e4e', '#8e2d2d'][placed % 4];
       g.fillRect(0, 0, w, h);
-      g.strokeStyle = '#fff'; g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
+      // diagonal racing slash for a bit of livery flair
+      g.fillStyle = 'rgba(255,255,255,0.12)';
+      g.beginPath();
+      g.moveTo(40, h); g.lineTo(190, 0); g.lineTo(260, 0); g.lineTo(110, h);
+      g.fill();
+      g.strokeStyle = '#fff'; g.lineWidth = 12; g.strokeRect(14, 14, w - 28, h - 28);
       g.fillStyle = '#fff';
-      g.font = '900 48px system-ui, sans-serif';
+      let size = 92;
+      g.font = `italic 900 ${size}px system-ui, sans-serif`;
+      while (g.measureText(text).width > w - 90 && size > 30) {
+        size -= 4;
+        g.font = `italic 900 ${size}px system-ui, sans-serif`;
+      }
       g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(texts[placed], w / 2, h / 2);
+      g.fillText(text, w / 2, h / 2 + 4);
     });
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(110, 28), new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.8 }));
-    board.position.y = 26;
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(120, 30), new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.8 }));
+    board.position.y = 27;
     board.castShadow = true;
     bb.add(board);
-    for (const o of [-40, 40]) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 26, 8), new THREE.MeshStandardMaterial({ color: 0x444a55 }));
-      leg.position.set(o, 13, -1);
+    for (const o of [-44, 44]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 27, 8), new THREE.MeshStandardMaterial({ color: 0x444a55 }));
+      leg.position.set(o, 13.5, -1);
       bb.add(leg);
     }
     bb.position.set(s.x + nx * (HALF_W + 55), 0, s.y + ny * (HALF_W + 55));
-    bb.lookAt(s.x, 26, s.y);
+    bb.lookAt(s.x, 27, s.y);
     worldGroup.add(bb);
     placed++;
   }
@@ -948,6 +971,7 @@ function connect(room, onOpen) {
     if (m.t === 'you') { myId = m.id; return; }
     if (m.t === 'meta') return onMeta(m);
     if (m.t === 's') return onSnap(m);
+    if (m.t === 'lap') return onLap(m);
     if (m.t === 'results') return onResults(m);
   };
   ws.onerror = () => showBanner('Connection failed — refresh and try again', true);
@@ -966,8 +990,12 @@ function onMeta(m) {
   if (m.state === 'countdown' && prevState !== 'countdown') {
     myCar = null; pending = []; snaps = []; latest = null;
     errX = errY = errA = 0;
+    lapStartSrv = 0; myLastLap = null; myBestLap = null;
+    ui.lapFlash.classList.add('hidden');
     clearSkids();
   }
+  // green light: anchor the live lap clock to the race start
+  if (m.state === 'racing' && prevState !== 'racing') lapStartSrv = m.cd || 0;
   racing = m.state === 'racing' || m.state === 'countdown';
   // drop car objects for players that left
   const ids = new Set(m.players.map(p => p.id));
@@ -1014,16 +1042,42 @@ function onSnap(m) {
   }
 }
 
+function flashLap(text, cls) {
+  ui.lapFlash.textContent = text;
+  ui.lapFlash.className = cls || '';
+  ui.lapFlash.style.opacity = '1';
+  clearTimeout(flashLap._t);
+  flashLap._t = setTimeout(() => { ui.lapFlash.style.opacity = '0'; }, 2600);
+}
+
+function onLap(m) {
+  if (m.id !== myId) return;
+  lapStartSrv = m.now;
+  myLastLap = m.time;
+  const newBest = myBestLap === null || m.time <= m.best;
+  myBestLap = m.best;
+  if (m.lap >= m.of) flashLap(`🏁 FINISHED — ${fmt(m.time)}`, 'finish');
+  else flashLap(`LAP ${m.lap}/${m.of} — ${fmt(m.time)}`, newBest && m.lap > 1 ? 'best' : '');
+}
+
 function onResults(m) {
   ui.resultsList.innerHTML = '';
+  const winT = m.list.length && !m.list[0].dnf ? m.list[0].time : null;
   m.list.forEach((r, i) => {
     const row = document.createElement('div');
     row.className = 'res-row';
-    row.innerHTML = `<span class="res-pos">${i + 1}</span>
-      <span class="pl-dot" style="background:${r.color}"></span>
-      <span class="res-name"></span>
-      <span class="res-time">${r.dnf ? 'DNF' : fmt(r.time)}</span>
-      <span class="res-best">best ${fmt(r.best)}</span>`;
+    const timeStr = r.dnf ? 'DNF'
+      : (i === 0 || winT === null) ? fmt(r.time)
+      : '+' + ((r.time - winT) / 1000).toFixed(3);
+    const laps = (r.laps || []).map((t, k) =>
+      `<span class="${t === r.best ? 'bl' : ''}">L${k + 1} ${fmt(t)}</span>`).join(' · ');
+    row.innerHTML = `<div class="res-main">
+        <span class="res-pos">${i + 1}</span>
+        <span class="pl-dot" style="background:${r.color}"></span>
+        <span class="res-name"></span>
+        <span class="res-time">${timeStr}</span>
+      </div>
+      <div class="res-laps">${laps || 'no laps completed'}</div>`;
     row.querySelector('.res-name').textContent = r.name;
     ui.resultsList.appendChild(row);
   });
@@ -1127,6 +1181,8 @@ function leaveGame() {
   if (ws) { ws.onclose = null; ws.onerror = null; try { ws.close(); } catch (e) {} ws = null; }
   myId = null; myRole = null; myCar = null; myPrev = null;
   pending = []; snaps = []; latest = null; haveOffset = false; racing = false;
+  lapStartSrv = 0; myLastLap = null; myBestLap = null;
+  ui.lapFlash.classList.add('hidden');
   meta = { state: 'lobby', mode: 'contact', laps: 3, host: null, players: [] };
   for (const obj of carObjs.values()) obj.dispose();
   carObjs.clear();
@@ -1137,7 +1193,25 @@ function leaveGame() {
 }
 ui.leaveBtn.onclick = leaveGame;
 
-// ---- fullscreen toggle ----
+// ---- toolbar icons: bold arcade-style strokes, drawn inline ----
+const ICON = {
+  fsEnter: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M9 3.5H3.5V9M15 3.5h5.5V9M9 20.5H3.5V15M15 20.5h5.5V15"/></svg>`,
+  fsExit: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M3.5 9H9V3.5M20.5 9H15V3.5M3.5 15H9v5.5M20.5 15H15v5.5"/></svg>`,
+  sndOn: `<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" stroke="currentColor" stroke-linejoin="round">
+    <path d="M3.5 9.5v5H7l5 4.5v-14L7 9.5H3.5z" stroke-width="1.6"/>
+    <path d="M15.5 8.6a4.6 4.6 0 0 1 0 6.8M18.3 6a8.6 8.6 0 0 1 0 12" fill="none" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+  sndOff: `<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" stroke="currentColor" stroke-linejoin="round">
+    <path d="M3.5 9.5v5H7l5 4.5v-14L7 9.5H3.5z" stroke-width="1.6"/>
+    <path d="M15.5 9.5l6 6M21.5 9.5l-6 6" fill="none" stroke-width="2.8" stroke-linecap="round"/></svg>`
+};
+function syncIcons() {
+  ui.fsBtn.innerHTML = document.fullscreenElement ? ICON.fsExit : ICON.fsEnter;
+  ui.muteBtn.innerHTML = muted ? ICON.sndOff : ICON.sndOn;
+  ui.muteBtn.classList.toggle('off', muted);
+}
+
 function toggleFullscreen() {
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
@@ -1145,10 +1219,14 @@ function toggleFullscreen() {
     document.documentElement.requestFullscreen().catch(() => {});
   }
 }
+function toggleMute() {
+  muted = !muted;
+  syncIcons();
+}
 ui.fsBtn.onclick = toggleFullscreen;
-document.addEventListener('fullscreenchange', () => {
-  ui.fsBtn.textContent = document.fullscreenElement ? '⊠' : '⛶';
-});
+ui.muteBtn.onclick = toggleMute;
+document.addEventListener('fullscreenchange', syncIcons);
+syncIcons();
 
 // ============================================================ INPUT
 const KEYMAP = {
@@ -1157,7 +1235,7 @@ const KEYMAP = {
 };
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
-  if (e.code === 'KeyM') { muted = !muted; return; }
+  if (e.code === 'KeyM') { toggleMute(); return; }
   if (e.code === 'KeyC') { camMode = (camMode + 1) % 3; return; }
   if (e.code === 'KeyF') { toggleFullscreen(); return; }
   const k = KEYMAP[e.code];
@@ -1287,14 +1365,18 @@ function frame(nowMs) {
   lastT = nowMs;
 
   // ---- fixed-step local prediction ----
-  const predicting = meta.state === 'racing' && myCar && !myCar.finished && myRole === 'racer';
+  // keeps running after the chequered flag (with hands-off inputs) so the car
+  // coasts smoothly over the line instead of snapping to the delayed server view
+  const predicting = meta.state === 'racing' && myCar && myRole === 'racer';
   if (predicting) {
     acc += dt;
     let steps = 0;
     while (acc >= DT && steps < 5) {
       acc -= DT; steps++;
       seq++;
-      const inp = { u: keys.u, d: keys.d, l: keys.l, r: keys.r, h: keys.h };
+      const inp = myCar.finished
+        ? { u: 0, d: 0, l: 0, r: 0, h: 0 }
+        : { u: keys.u, d: keys.d, l: keys.l, r: keys.r, h: keys.h };
       myPrev = { x: myCar.x, y: myCar.y, a: myCar.angle };
       S.stepCar(myCar, inp, DT);
       pending.push({ s: seq, i: inp });
@@ -1313,7 +1395,7 @@ function frame(nowMs) {
       y: (myPrev ? lerp(myPrev.y, myCar.y, al) : myCar.y) + errY,
       angle: (myPrev ? lerpAng(myPrev.a, myCar.angle, al) : myCar.angle) + errA,
       vx: myCar.vx, vy: myCar.vy, steer: myCar.steer,
-      braking: keys.d === 1, onTrack: myCar.onTrack
+      braking: keys.d === 1 && !myCar.finished, onTrack: myCar.onTrack
     };
   }
 
@@ -1394,6 +1476,13 @@ function frame(nowMs) {
 
   // ---- HUD ----
   if (++hudTick % 3 === 0) {
+    if (meta.state === 'racing' && lapStartSrv && haveOffset) {
+      ui.curLapT.textContent = (myCar && myCar.finished) ? fmt(myLastLap) : fmt(Math.max(0, serverNow - lapStartSrv));
+    } else {
+      ui.curLapT.textContent = '—';
+    }
+    ui.lastLapT.textContent = fmt(myLastLap);
+    ui.bestLapT.textContent = fmt(myBestLap);
     if (myCar && predicting) ui.speed.textContent = Math.round(Math.hypot(myCar.vx, myCar.vy) * 0.38);
     else if (followSt) ui.speed.textContent = Math.round(Math.hypot(followSt.vx || 0, followSt.vy || 0) * 0.38);
     if (latest) {
@@ -1438,7 +1527,7 @@ function frame(nowMs) {
     }
   }
 
-  updateAudio(myCar && predicting ? Math.hypot(myCar.vx, myCar.vy) : 0, keys.u === 1);
+  updateAudio(myCar && predicting ? Math.hypot(myCar.vx, myCar.vy) : 0, keys.u === 1 && !(myCar && myCar.finished));
   renderer.render(scene, camera);
 }
 

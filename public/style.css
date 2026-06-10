@@ -44,6 +44,38 @@ html, body {
 #lapinfo { left: 16px; }
 #posinfo { left: 150px; }
 
+/* F1-style timing tower */
+#timing {
+  position: fixed; left: 16px; top: 62px;
+  background: rgba(8, 8, 12, .72);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-left: 3px solid #e10600;
+  padding: 8px 12px;
+  font-variant-numeric: tabular-nums;
+  min-width: 158px;
+}
+.t-row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.5; }
+.t-lab { font-size: 11px; font-weight: 800; font-style: italic; letter-spacing: .12em; color: #8b96ab; align-self: center; }
+.t-val { font-size: 15px; font-weight: 800; font-style: italic; }
+.t-row.best .t-val { color: #c45cff; }
+
+/* lap-complete flash */
+#lapFlash {
+  position: fixed; top: 18%; left: 50%; transform: translateX(-50%) skewX(-8deg);
+  font-size: 42px; font-weight: 900; font-style: italic; letter-spacing: .02em;
+  color: #fff; white-space: nowrap;
+  background: rgba(8, 8, 12, .78);
+  border-left: 6px solid #e10600;
+  padding: 10px 28px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+  text-shadow: 0 3px 14px rgba(0, 0, 0, .7);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  transition: opacity .4s;
+}
+#lapFlash.best { border-left-color: #c45cff; color: #e2b6ff; }
+#lapFlash.finish { border-left-color: #ffd166; color: #ffd166; }
+
 #modeBadge {
   position: fixed; top: 56px; right: 16px;
   font-size: 12px; font-weight: 700; letter-spacing: .08em;
@@ -58,15 +90,24 @@ html, body {
   display: flex; gap: 8px; z-index: 20;
 }
 #toolbar button {
-  padding: 8px 12px;
-  background: rgba(10, 14, 22, .65);
-  border: 1px solid rgba(255, 255, 255, .15);
-  border-radius: 10px;
-  color: #dde4f0; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  /* clip-path slants the bottom-right corner; pad asymmetrically so the
+     content sits on the visual centre of the shape, not the box centre */
+  min-width: 40px; height: 36px; padding: 0 13px 0 7px;
+  background: linear-gradient(165deg, rgba(13, 13, 19, .92), rgba(24, 24, 34, .92));
+  border: 1px solid #2a2a35;
+  border-left: 3px solid #e10600;
+  border-radius: 0;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+  color: #eef2fa; font-size: 12px; font-weight: 800;
+  font-style: italic; text-transform: uppercase; letter-spacing: .1em;
   cursor: pointer;
 }
-#toolbar button:hover { background: rgba(30, 38, 56, .85); }
-#leaveBtn { color: #ff8585 !important; }
+#toolbar button svg { display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7)); }
+#toolbar button:hover { background: #e10600; border-color: #e10600; color: #fff; }
+#muteBtn.off { color: #7d8496; border-left-color: #555a66; }
+#leaveBtn { color: #ff8585; border-left-color: #ff8585; }
+#leaveBtn:hover { color: #fff; background: #c8231e; }
 
 #banner {
   position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
@@ -156,13 +197,16 @@ html, body {
 .seg button.on { background: #e10600; border-color: #e10600; color: #fff; }
 
 /* ---- Results ---- */
-#resultsList { margin: 16px 0 4px; text-align: left; }
-.res-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; border-radius: 8px; font-size: 14px;
-}
+#resultsList { margin: 16px 0 4px; text-align: left; max-height: 320px; overflow-y: auto; }
+.res-row { padding: 8px 12px 9px; border-radius: 8px; font-size: 14px; }
 .res-row:nth-child(odd) { background: rgba(255, 255, 255, .04); }
-.res-pos { width: 26px; font-weight: 800; color: #ffd166; }
+.res-main { display: flex; align-items: center; gap: 10px; }
+.res-pos { width: 26px; font-weight: 800; font-style: italic; color: #ffd166; }
 .res-name { flex: 1; font-weight: 600; }
-.res-time { font-variant-numeric: tabular-nums; color: #c7d0e0; }
-.res-best { font-size: 11px; color: #76819a; margin-left: 8px; }
+.res-time { font-variant-numeric: tabular-nums; font-weight: 700; color: #e8ecf4; }
+.res-laps {
+  margin: 4px 0 0 36px;
+  font-size: 11px; color: #76819a; letter-spacing: .03em;
+  font-variant-numeric: tabular-nums; line-height: 1.6;
+}
+.res-laps .bl { color: #c45cff; font-weight: 700; }

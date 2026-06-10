@@ -14,16 +14,23 @@
     <div id="speed"><span id="speedVal">0</span><small> km/h</small></div>
     <div id="lapinfo">LAP <span id="lapVal">1/3</span></div>
     <div id="posinfo">P<span id="posVal">1</span></div>
+    <div id="timing">
+      <div class="t-row"><span class="t-lab">TIME</span><span class="t-val" id="curLapT">—</span></div>
+      <div class="t-row"><span class="t-lab">LAST</span><span class="t-val" id="lastLapT">—</span></div>
+      <div class="t-row best"><span class="t-lab">BEST</span><span class="t-val" id="bestLapT">—</span></div>
+    </div>
     <div id="modeBadge"></div>
   </div>
 
+  <div id="lapFlash" class="hidden"></div>
   <div id="banner" class="hidden"></div>
   <div id="countdown" class="hidden"></div>
   <div id="toolbar">
-    <button id="fsBtn" title="Fullscreen (F)">⛶</button>
+    <button id="muteBtn" title="Sound (M)"></button>
+    <button id="fsBtn" title="Fullscreen (F)"></button>
     <button id="leaveBtn" class="hidden" title="Leave the game">Leave</button>
   </div>
-  <div id="muteHint">M sound · F fullscreen</div>
+  <div id="muteHint">M sound · F fullscreen · C camera</div>
 
   <!-- Join screen -->
   <div id="join" class="panel">
