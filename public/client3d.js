@@ -13,18 +13,19 @@ const mini = $('minimap'), mctx = mini.getContext('2d');
 const ui = {
   hud: $('hud'), speed: $('speedVal'), lap: $('lapVal'), pos: $('posVal'),
   mode: $('modeBadge'), banner: $('banner'), countdown: $('countdown'),
-  join: $('join'), name: $('nameInput'), joinRacer: $('joinRacer'), joinSpec: $('joinSpec'),
-  lobby: $('lobby'), playerList: $('playerList'), modeSeg: $('modeSeg'), lapsSeg: $('lapsSeg'),
+  join: $('join'), name: $('nameInput'), room: $('roomInput'), joinRacer: $('joinRacer'), joinSpec: $('joinSpec'),
+  lobby: $('lobby'), lobbyTitle: $('lobbyTitle'), playerList: $('playerList'), modeSeg: $('modeSeg'), lapsSeg: $('lapsSeg'),
   roleBtn: $('roleBtn'), startBtn: $('startBtn'), lobbyHint: $('lobbyHint'),
   results: $('results'), resultsList: $('resultsList'), lobbyBtn: $('lobbyBtn'), resultsHint: $('resultsHint')
 };
 
 // ---- State ----
-let ws = null, myId = null, myRole = null;
+let ws = null, myId = null, myRole = null, myRoom = 'paddock';
 let meta = { state: 'lobby', mode: 'contact', laps: 3, host: null, players: [] };
 let snaps = [], latest = null;
 let timeOffset = 0, haveOffset = false;
 let myCar = null, pending = [], seq = 0;
+let myPrev = null; // own-car state before the latest physics step, for render interpolation
 let errX = 0, errY = 0, errA = 0;
 let keys = { u: 0, d: 0, l: 0, r: 0, h: 0 };
 let racing = false;
@@ -45,7 +46,7 @@ const rng = () => (rngS = (rngS * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
 
 // ============================================================ THREE SETUP
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -72,7 +73,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
 sun.position.set(500, 800, 300);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1536, 1536);
 sun.shadow.camera.near = 100;
 sun.shadow.camera.far = 2500;
 const SHADOW_R = 420;
@@ -487,18 +488,25 @@ let crowdBodies, crowdHeads, crowdData = [];
   worldGroup.add(crowdBodies, crowdHeads);
 }
 const crowdM = new THREE.Matrix4();
-function animateCrowd(tSec) {
+const CROWD_ANIM_R2 = 750 * 750;
+function animateCrowd(tSec, cx, cz) {
   if (!racing) return;
+  let touched = false;
   for (let i = 0; i < crowdData.length; i++) {
     const p = crowdData[i];
+    const dx = p.x - cx, dz = p.y - cz;
+    if (dx * dx + dz * dz > CROWD_ANIM_R2) continue; // only animate near the camera
     const bob = Math.max(0, Math.sin(tSec * 5 + p.phase)) * p.amp;
     crowdM.makeTranslation(p.x, p.h + 5.5 + bob, p.y);
     crowdBodies.setMatrixAt(i, crowdM);
     crowdM.makeTranslation(p.x, p.h + 11.5 + bob, p.y);
     crowdHeads.setMatrixAt(i, crowdM);
+    touched = true;
   }
-  crowdBodies.instanceMatrix.needsUpdate = true;
-  crowdHeads.instanceMatrix.needsUpdate = true;
+  if (touched) {
+    crowdBodies.instanceMatrix.needsUpdate = true;
+    crowdHeads.instanceMatrix.needsUpdate = true;
+  }
 }
 
 // ============================================================ SKIDS & SMOKE
@@ -745,9 +753,10 @@ function updateAudio(speed, throttle) {
 }
 
 // ============================================================ NETWORK
-function connect() {
+function connect(room, onOpen) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}`);
+  ws = new WebSocket(`${proto}://${location.host}/ws/${encodeURIComponent(room)}`);
+  ws.onopen = onOpen;
   ws.onmessage = e => {
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
@@ -756,12 +765,15 @@ function connect() {
     if (m.t === 's') return onSnap(m);
     if (m.t === 'results') return onResults(m);
   };
+  ws.onerror = () => showBanner('Connection failed — refresh and try again', true);
   ws.onclose = () => {
     showBanner('Disconnected — refresh to rejoin', true);
     racing = false;
   };
 }
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+// keepalive so idle lobby sockets don't get reaped by proxies
+setInterval(() => send({ t: 'ping' }), 20000);
 
 function onMeta(m) {
   const prevState = meta.state;
@@ -804,6 +816,12 @@ function onSnap(m) {
     for (const p of pending) S.stepCar(myCar, p.i, DT);
     errX += oldX - myCar.x; errY += oldY - myCar.y; errA += wrapAng(oldA - myCar.angle);
     if (Math.abs(errX) > 120 || Math.abs(errY) > 120) errX = errY = errA = 0;
+    // keep the render-interpolation anchor continuous across the rewind+replay
+    if (myPrev) {
+      myPrev.x += myCar.x - oldX;
+      myPrev.y += myCar.y - oldY;
+      myPrev.a += wrapAng(myCar.angle - oldA);
+    }
   }
   if (mine && meta.state === 'countdown' && !myCar) {
     myCar = S.makeCar(mine[1], mine[2], mine[3]);
@@ -849,6 +867,7 @@ function updatePanels() {
   const isHost = myId === meta.host;
 
   if (joined && st === 'lobby') {
+    ui.lobbyTitle.textContent = 'Lobby · ' + (meta.room || myRoom);
     ui.playerList.innerHTML = '';
     for (const p of meta.players) {
       const row = document.createElement('div');
@@ -891,11 +910,20 @@ function updatePanels() {
 
 function doJoin(role) {
   initAudio();
-  send({ t: 'join', name: ui.name.value.trim(), role });
+  const room = (ui.room.value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24) || 'paddock';
+  const name = ui.name.value.trim();
+  if (ws && ws.readyState === 1 && room === myRoom) {
+    send({ t: 'join', name, role });
+    return;
+  }
+  myRoom = room;
+  if (ws) { ws.onclose = null; ws.close(); }
+  connect(room, () => send({ t: 'join', name, role }));
 }
 ui.joinRacer.onclick = () => doJoin('racer');
 ui.joinSpec.onclick = () => doJoin('spectator');
 ui.name.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin('racer'); });
+ui.room.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin('racer'); });
 ui.modeSeg.addEventListener('click', e => {
   if (e.target.dataset.mode) send({ t: 'mode', mode: e.target.dataset.mode });
 });
@@ -957,7 +985,7 @@ function remoteStates(renderT) {
       id: cb[0],
       x: lerp(ca[1], cb[1], t), y: lerp(ca[2], cb[2], t),
       angle: lerpAng(ca[3], cb[3], t),
-      vx: cb[4], vy: cb[5], steer: cb[6],
+      vx: lerp(ca[4], cb[4], t), vy: lerp(ca[5], cb[5], t), steer: lerp(ca[6], cb[6], t),
       laps: cb[8], prog: cb[9],
       braking: !!(cb[10] & 1), finished: !!(cb[10] & 4), onTrack: !!(cb[10] & 8)
     });
@@ -1009,12 +1037,27 @@ function frame(nowMs) {
       acc -= DT; steps++;
       seq++;
       const inp = { u: keys.u, d: keys.d, l: keys.l, r: keys.r, h: keys.h };
+      myPrev = { x: myCar.x, y: myCar.y, a: myCar.angle };
       S.stepCar(myCar, inp, DT);
       pending.push({ s: seq, i: inp });
       if (pending.length > 240) pending.shift();
       send({ t: 'i', s: seq, u: inp.u, d: inp.d, l: inp.l, r: inp.r, h: inp.h });
     }
-  } else { acc = 0; }
+  } else { acc = 0; myPrev = null; }
+
+  // own-car visual state, interpolated between the last two physics steps so
+  // motion is smooth at any display refresh rate
+  let visMe = null;
+  if (myCar) {
+    const al = myPrev ? clamp(acc / DT, 0, 1) : 1;
+    visMe = {
+      x: (myPrev ? lerp(myPrev.x, myCar.x, al) : myCar.x) + errX,
+      y: (myPrev ? lerp(myPrev.y, myCar.y, al) : myCar.y) + errY,
+      angle: (myPrev ? lerpAng(myPrev.a, myCar.angle, al) : myCar.angle) + errA,
+      vx: myCar.vx, vy: myCar.vy, steer: myCar.steer,
+      braking: keys.d === 1, onTrack: myCar.onTrack
+    };
+  }
 
   const decay = Math.pow(0.06, dt);
   errX *= decay; errY *= decay; errA *= decay;
@@ -1029,13 +1072,7 @@ function frame(nowMs) {
   for (const r of remotes) {
     const isMe = r.id === myId;
     let st = r;
-    if (isMe && predicting) {
-      st = {
-        x: myCar.x + errX, y: myCar.y + errY, angle: myCar.angle + errA,
-        vx: myCar.vx, vy: myCar.vy, steer: myCar.steer,
-        braking: keys.d === 1, onTrack: myCar.onTrack
-      };
-    }
+    if (isMe && predicting && visMe) st = visMe;
     let obj = carObjs.get(r.id);
     if (!obj) {
       const pl = names.get(r.id);
@@ -1053,8 +1090,8 @@ function frame(nowMs) {
 
   // ---- camera ----
   let followSt = null;
-  if (predicting || (myCar && meta.state === 'countdown')) {
-    followSt = { x: myCar.x + errX, y: myCar.y + errY, angle: myCar.angle + errA, vx: myCar.vx, vy: myCar.vy };
+  if (visMe && (predicting || meta.state === 'countdown')) {
+    followSt = visMe;
   } else {
     const mine = remotes.find(r => r.id === myId);
     followSt = mine || remotes[0] || null;
@@ -1092,7 +1129,7 @@ function frame(nowMs) {
 
   // ---- effects + crowd ----
   updateSmoke(dt);
-  if ((hudTick & 1) === 0) animateCrowd(nowMs / 1000);
+  if ((hudTick & 1) === 0) animateCrowd(nowMs / 1000, camLook.x, camLook.z);
 
   // ---- HUD ----
   if (++hudTick % 3 === 0) {
@@ -1144,5 +1181,4 @@ function frame(nowMs) {
   renderer.render(scene, camera);
 }
 
-connect();
 requestAnimationFrame(frame);

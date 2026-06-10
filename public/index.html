@@ -26,6 +26,7 @@
     <h1>🏁 TB Racer</h1>
     <p class="sub">Multiplayer circuit racing</p>
     <input id="nameInput" maxlength="16" placeholder="Your name" autocomplete="off">
+    <input id="roomInput" maxlength="24" placeholder="Room name (default: paddock)" autocomplete="off">
     <div class="row">
       <button id="joinRacer" class="primary">Join as Racer</button>
       <button id="joinSpec">Watch as Spectator</button>
@@ -35,7 +36,7 @@
 
   <!-- Lobby -->
   <div id="lobby" class="panel hidden">
-    <h1>Lobby</h1>
+    <h1 id="lobbyTitle">Lobby</h1>
     <div id="playerList"></div>
     <div class="settings">
       <div class="setting">
