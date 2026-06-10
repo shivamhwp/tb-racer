@@ -54,7 +54,7 @@ renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
 const SKY = 0xaecbe8;
-scene.fog = new THREE.Fog(0xbcd4ea, 900, 2600);
+scene.fog = new THREE.Fog(0xbcd4ea, 1100, 3400);
 
 const camera = new THREE.PerspectiveCamera(62, 1, 1, 6000);
 camera.position.set(WORLD.w / 2, 400, WORLD.h / 2 + 600);
@@ -156,6 +156,9 @@ scene.add(worldGroup);
 {
   const grassTex = canvasTex(256, 256, (g, w, h) => {
     g.fillStyle = '#41834c'; g.fillRect(0, 0, w, h);
+    // mowing stripes, like a groomed F1 venue
+    g.fillStyle = 'rgba(255,255,255,0.05)';
+    g.fillRect(0, 0, w / 2, h);
     for (let i = 0; i < 1400; i++) {
       g.fillStyle = `rgba(${20 + Math.random() * 40 | 0},${90 + Math.random() * 60 | 0},${30 + Math.random() * 40 | 0},0.25)`;
       g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
@@ -323,6 +326,19 @@ for (let i = 0; i < N; i++) {
   face2.rotation.y = -Math.PI / 2;
   face2.position.x = 2.2;
   gantry.add(face2);
+  // F1 start-light pods under the beam
+  const podMat = new THREE.MeshStandardMaterial({ color: 0x14171d, roughness: 0.6 });
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0x3a0a0a, emissive: 0xff2020, emissiveIntensity: 1.6 });
+  for (let k = -2; k <= 2; k++) {
+    const pod = new THREE.Mesh(new THREE.BoxGeometry(3, 9, 5), podMat);
+    pod.position.set(0, 42.5, k * 12);
+    gantry.add(pod);
+    for (const ly of [40.5, 44.5]) {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.4, 2.6), lampMat);
+      lamp.position.set(0, ly, k * 12);
+      gantry.add(lamp);
+    }
+  }
   gantry.position.set(s0.x, 0, s0.y);
   gantry.rotation.y = yaw;
   worldGroup.add(gantry);
@@ -330,20 +346,20 @@ for (let i = 0; i < N; i++) {
 
 // billboards along straights
 {
-  const texts = ['TB RACER', 'THEO ♥ OBSIDIAN', 'CAPSULE GP', 'FLAT OUT!'];
+  const texts = ['TB GRAND PRIX', 'DRS ZONE', 'THEO ♥ OBSIDIAN', 'TYRELLO TYRES', 'GOLD ARROW F1', 'FLAT OUT!'];
   let placed = 0;
-  for (let i = 40; i < N && placed < texts.length; i += 30) {
+  for (let i = 140; i < N && placed < texts.length; i += 30) {
     if (curva[i] > 0.02) continue;
     const s = SAM[i];
     const side = placed % 2 ? 1 : -1;
     const nx = -s.dy * side, ny = s.dx * side;
     const bb = new THREE.Group();
     const tex = canvasTex(512, 128, (g, w, h) => {
-      g.fillStyle = ['#0e3e8e', '#7c2d8e', '#0e6e4e', '#8e2d2d'][placed];
+      g.fillStyle = ['#0e3e8e', '#7c2d8e', '#0e6e4e', '#8e2d2d'][placed % 4];
       g.fillRect(0, 0, w, h);
       g.strokeStyle = '#fff'; g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
       g.fillStyle = '#fff';
-      g.font = '900 52px system-ui, sans-serif';
+      g.font = '900 48px system-ui, sans-serif';
       g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(texts[placed], w / 2, h / 2);
     });
@@ -366,15 +382,18 @@ for (let i = 0; i < N; i++) {
 // trees (instanced)
 {
   const treePos = [];
-  for (let t = 0; t < 160; t++) {
+  // F1 venues are open — keep trees well clear of the racing surface
+  for (let t = 0; t < 130; t++) {
     const x = 60 + rng() * (WORLD.w - 120), y = 60 + rng() * (WORLD.h - 120);
-    if (S.nearestIdx(x, y, -1, 0).d2 < (HALF_W + 120) * (HALF_W + 120)) continue;
+    if (S.nearestIdx(x, y, -1, 0).d2 < (HALF_W + 260) * (HALF_W + 260)) continue;
     treePos.push([x, y, 0.7 + rng() * 0.8]);
   }
-  // outer ring of trees beyond the world
-  for (let t = 0; t < 120; t++) {
-    const a = rng() * Math.PI * 2, r = 1500 + rng() * 900;
-    treePos.push([WORLD.w / 2 + Math.cos(a) * r, WORLD.h / 2 + Math.sin(a) * r, 1 + rng() * 1.3]);
+  // outer ring of trees beyond the circuit
+  for (let t = 0; t < 130; t++) {
+    const a = rng() * Math.PI * 2, r = 2100 + rng() * 900;
+    const x = WORLD.w / 2 + Math.cos(a) * r, y = WORLD.h / 2 + Math.sin(a) * r;
+    if (S.nearestIdx(x, y, -1, 0).d2 < (HALF_W + 260) * (HALF_W + 260)) continue;
+    treePos.push([x, y, 1 + rng() * 1.3]);
   }
   const trunkG = new THREE.CylinderGeometry(2.2, 3, 18, 6);
   const leafG = new THREE.IcosahedronGeometry(16, 0);
@@ -407,106 +426,177 @@ for (let i = 0; i < N; i++) {
   }
 }
 
-// ---- crowd (instanced, animated) + grandstands ----
-let crowdBodies, crowdHeads, crowdData = [];
-{
-  const standMat = new THREE.MeshStandardMaterial({ color: 0x39404f, roughness: 0.85 });
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0xd8dde6, roughness: 0.6, metalness: 0.3 });
-  const spots = [];
-  for (let c = 0; c < 26; c++) {
-    const i = Math.floor(rng() * N);
-    const s = SAM[i];
-    const side = rng() > 0.5 ? 1 : -1;
-    const nx = -s.dy * side, ny = s.dx * side;
-    const grand = curva[i] > 0.05 && rng() > 0.45; // grandstands at corners
-    const baseOff = HALF_W + (grand ? 46 : 26) + rng() * 10;
-    const cx = s.x + nx * baseOff, cy = s.y + ny * baseOff;
-    if (cx < 40 || cy < 40 || cx > WORLD.w - 40 || cy > WORLD.h - 40) continue;
-    if (S.nearestIdx(cx, cy, i, 80).d2 < (HALF_W + 14) * (HALF_W + 14)) continue;
-    spots.push({ s, nx, ny, baseOff, grand, i });
-  }
-  for (const sp of spots) {
-    const { s, nx, ny, baseOff, grand } = sp;
-    const yaw = Math.atan2(nx, ny) + Math.PI; // face the track
-    if (grand) {
-      const g = new THREE.Group();
-      for (let row = 0; row < 3; row++) {
-        const step = new THREE.Mesh(new THREE.BoxGeometry(120, 6 + row * 6, 16), standMat);
-        step.position.set(0, (6 + row * 6) / 2, row * 16);
-        step.castShadow = step.receiveShadow = true;
-        g.add(step);
-      }
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(126, 2.5, 58), roofMat);
-      roof.position.set(0, 46, 18);
-      roof.castShadow = true;
-      g.add(roof);
-      for (const ox of [-58, 58]) {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 46, 6), standMat);
-        pole.position.set(ox, 23, 44);
-        g.add(pole);
-      }
-      g.position.set(s.x + nx * (baseOff + 8), 0, s.y + ny * (baseOff + 8));
-      g.rotation.y = -Math.atan2(ny, nx) + Math.PI / 2;
-      worldGroup.add(g);
-      // seated rows of people
-      for (let row = 0; row < 3; row++) {
-        for (let k = -5; k <= 5; k++) {
-          const along = k * 10 + (rng() - 0.5) * 4;
-          const out = baseOff + 8 + (row - 1) * 16 * 0 + row * 14;
-          crowdData.push({
-            x: s.x + s.dx * along + nx * (baseOff + 2 + row * 15),
-            y: s.y + s.dy * along + ny * (baseOff + 2 + row * 15),
-            h: 7 + row * 5.6, phase: rng() * 6.28, amp: 1.2 + rng() * 1.6
-          });
-        }
-      }
-    } else {
-      const count = 8 + Math.floor(rng() * 12);
-      for (let p = 0; p < count; p++) {
-        crowdData.push({
-          x: s.x + s.dx * (rng() - 0.5) * 120 + nx * (baseOff + rng() * 30),
-          y: s.y + s.dy * (rng() - 0.5) * 120 + ny * (baseOff + rng() * 30),
-          h: 0, phase: rng() * 6.28, amp: 1.4 + rng() * 2
-        });
-      }
+// ---- F1 trackside: runoff paint, gravel traps, tyre stacks, grandstands, pits ----
+
+// quad-strip beside the track. quads = array of [sampleIdx, side, offsetFrom, offsetTo]
+function ribbonMesh(quads, color, y) {
+  if (!quads.length) return;
+  const pos = [], nor = [], idx = [];
+  let q = 0;
+  for (const [i, side, o1, o2] of quads) {
+    const s = SAM[i], s2 = SAM[(i + 1) % N];
+    for (const p of [s, s2]) {
+      const nx = -p.dy * side, ny = p.dx * side;
+      pos.push(p.x + nx * o1, y, p.y + ny * o1, p.x + nx * o2, y, p.y + ny * o2);
+      nor.push(0, 1, 0, 0, 1, 0);
     }
+    const a = q * 4;
+    idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    q++;
   }
-  const bodyG = new THREE.CapsuleGeometry(2.1, 5.5, 2, 6);
-  const headG = new THREE.SphereGeometry(1.9, 8, 6);
-  crowdBodies = new THREE.InstancedMesh(bodyG, new THREE.MeshStandardMaterial({ roughness: 0.95 }), crowdData.length);
-  crowdHeads = new THREE.InstancedMesh(headG, new THREE.MeshStandardMaterial({ roughness: 0.9 }), crowdData.length);
-  const m = new THREE.Matrix4(), col = new THREE.Color();
-  const skins = [0xe8b08c, 0xc68863, 0x8d5a3b, 0xf1c9a5];
-  crowdData.forEach((p, i) => {
-    m.makeTranslation(p.x, p.h + 5.5, p.y);
-    crowdBodies.setMatrixAt(i, m);
-    crowdBodies.setColorAt(i, col.setHSL(rng(), 0.5 + rng() * 0.3, 0.45 + rng() * 0.2));
-    m.makeTranslation(p.x, p.h + 11.5, p.y);
-    crowdHeads.setMatrixAt(i, m);
-    crowdHeads.setColorAt(i, col.setHex(skins[Math.floor(rng() * 4)]));
-  });
-  worldGroup.add(crowdBodies, crowdHeads);
+  windUp(pos, idx);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setIndex(idx);
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.95, side: THREE.DoubleSide }));
+  m.receiveShadow = true;
+  worldGroup.add(m);
 }
-const crowdM = new THREE.Matrix4();
-const CROWD_ANIM_R2 = 750 * 750;
-function animateCrowd(tSec, cx, cz) {
-  if (!racing) return;
-  let touched = false;
-  for (let i = 0; i < crowdData.length; i++) {
-    const p = crowdData[i];
-    const dx = p.x - cx, dz = p.y - cz;
-    if (dx * dx + dz * dz > CROWD_ANIM_R2) continue; // only animate near the camera
-    const bob = Math.max(0, Math.sin(tSec * 5 + p.phase)) * p.amp;
-    crowdM.makeTranslation(p.x, p.h + 5.5 + bob, p.y);
-    crowdBodies.setMatrixAt(i, crowdM);
-    crowdM.makeTranslation(p.x, p.h + 11.5 + bob, p.y);
-    crowdHeads.setMatrixAt(i, crowdM);
-    touched = true;
+
+// outside of a corner = the convex side
+function outerSide(i) {
+  const a = SAM[i], c = SAM[(i + 6) % N];
+  return (a.dx * c.dy - a.dy * c.dx) > 0 ? -1 : 1;
+}
+
+{
+  // painted runoff bands at every corner, gravel traps at the heavy ones
+  const runoff = [], blue = [], red = [], gravel = [];
+  for (let i = 0; i < N; i++) {
+    if (curva[i] < 0.05) continue;
+    for (const side of [1, -1]) {
+      runoff.push([i, side, HALF_W + 7, HALF_W + 46]);
+      blue.push([i, side, HALF_W + 46, HALF_W + 59]);
+      red.push([i, side, HALF_W + 59, HALF_W + 72]);
+    }
+    if (curva[i] > 0.085) gravel.push([i, outerSide(i), HALF_W + 72, HALF_W + 150]);
   }
-  if (touched) {
-    crowdBodies.instanceMatrix.needsUpdate = true;
-    crowdHeads.instanceMatrix.needsUpdate = true;
+  ribbonMesh(runoff, 0x74767a, 0.16);
+  ribbonMesh(blue, 0x1c54bd, 0.2);
+  ribbonMesh(red, 0xc23434, 0.2);
+  ribbonMesh(gravel, 0xc9b07e, 0.14);
+}
+
+{
+  // tyre-stack barriers beyond the gravel at the big corners
+  const spots = [];
+  for (let i = 0; i < N && spots.length < 340; i += 2) {
+    if (curva[i] < 0.085) continue;
+    const side = outerSide(i);
+    const s = SAM[i];
+    const nx = -s.dy * side, ny = s.dx * side;
+    spots.push([s.x + nx * (HALF_W + 160), s.y + ny * (HALF_W + 160)]);
   }
+  if (spots.length) {
+    const tyres = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(6, 6, 11, 9),
+      new THREE.MeshStandardMaterial({ color: 0x1a1c1f, roughness: 0.95 }), spots.length);
+    const bands = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(6.15, 6.15, 3, 9),
+      new THREE.MeshStandardMaterial({ color: 0xe8e8ea, roughness: 0.8 }), spots.length);
+    const m = new THREE.Matrix4();
+    spots.forEach(([x, y], k) => {
+      m.makeTranslation(x, 5.5, y); tyres.setMatrixAt(k, m);
+      m.makeTranslation(x, 9, y); bands.setMatrixAt(k, m);
+    });
+    tyres.castShadow = true;
+    worldGroup.add(tyres, bands);
+  }
+}
+
+{
+  // empty grandstands with brightly painted seating decks at major corners
+  const seatCols = [0xd23b3b, 0x2d63c8, 0xe0a32e, 0x3c9e57];
+  const structMat = new THREE.MeshStandardMaterial({ color: 0x3a414e, roughness: 0.85 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xe2e6ec, roughness: 0.55, metalness: 0.35 });
+  let last = -1e9, built = 0;
+  for (let i = 0; i < N && built < 8; i++) {
+    if (curva[i] < 0.05 || i - last < 100) continue;
+    const side = outerSide(i);
+    const s = SAM[i];
+    const nx = -s.dy * side, ny = s.dx * side;
+    const cx = s.x + nx * (HALF_W + 205), cy = s.y + ny * (HALF_W + 205);
+    if (cx < 80 || cy < 80 || cx > WORLD.w - 80 || cy > WORLD.h - 80) continue;
+    if (S.nearestIdx(cx, cy, i, 120).d2 < (HALF_W + 170) * (HALF_W + 170)) continue;
+    last = i; built++;
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(220, 5, 78), structMat);
+    base.position.set(0, 2.5, 32);
+    g.add(base);
+    for (let row = 0; row < 4; row++) {
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(216, 6.5, 17),
+        new THREE.MeshStandardMaterial({ color: seatCols[(built + row) % 4], roughness: 0.9 }));
+      deck.position.set(0, 5 + row * 6.5 + 3.25, row * 17);
+      deck.castShadow = deck.receiveShadow = true;
+      g.add(deck);
+    }
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(228, 3, 86), roofMat);
+    roof.position.set(0, 58, 30);
+    roof.castShadow = true;
+    g.add(roof);
+    for (const ox of [-104, 104]) for (const oz of [62]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 56, 6), structMat);
+      pole.position.set(ox, 28, oz);
+      g.add(pole);
+    }
+    g.position.set(cx, 0, cy);
+    g.rotation.y = -Math.atan2(ny, nx) + Math.PI / 2;
+    worldGroup.add(g);
+  }
+}
+
+{
+  // pit complex along the main straight (inner side): pit lane, wall, building
+  const i0 = 18, i1 = 104, side = -1;
+  const P = (i, off) => {
+    const s = SAM[i];
+    return [s.x - s.dy * side * off, s.y + s.dx * side * off];
+  };
+  const lane = [];
+  for (let i = i0; i < i1; i++) lane.push([i, side, HALF_W + 26, HALF_W + 96]);
+  ribbonMesh(lane, 0x6c6e72, 0.15);
+
+  const [x1, y1] = P(i0 + 2, HALF_W + 14), [x2, y2] = P(i1 - 2, HALF_W + 14);
+  const wall = new THREE.Mesh(
+    new THREE.BoxGeometry(Math.hypot(x2 - x1, y2 - y1), 7, 3),
+    new THREE.MeshStandardMaterial({ color: 0xd8dce2, roughness: 0.7 }));
+  wall.position.set((x1 + x2) / 2, 3.5, (y1 + y2) / 2);
+  wall.rotation.y = -Math.atan2(y2 - y1, x2 - x1);
+  wall.castShadow = true;
+  worldGroup.add(wall);
+
+  const [bx1, by1] = P(i0 + 8, HALF_W + 158), [bx2, by2] = P(i1 - 8, HALF_W + 158);
+  const bl = Math.hypot(bx2 - bx1, by2 - by1);
+  const bld = new THREE.Group();
+  const main = new THREE.Mesh(new THREE.BoxGeometry(bl, 44, 92),
+    new THREE.MeshStandardMaterial({ color: 0xbfc5cf, roughness: 0.6, metalness: 0.2 }));
+  main.position.y = 22;
+  main.castShadow = main.receiveShadow = true;
+  bld.add(main);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(bl + 2, 10, 94),
+    new THREE.MeshStandardMaterial({ color: 0x12202e, roughness: 0.1, metalness: 0.85 }));
+  glass.position.y = 33;
+  bld.add(glass);
+  const front = canvasTex(1024, 128, (g, w, h) => {
+    g.fillStyle = '#aab1bc'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#10151d';
+    for (let d = 0; d < 11; d++) g.fillRect(24 + d * 92, 52, 64, 76);
+    g.fillStyle = '#10151d'; g.fillRect(0, 0, w, 40);
+    g.fillStyle = '#ffd166';
+    g.font = '900 30px system-ui, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('T B   G R A N D   P R I X   ·   P I T   L A N E', w / 2, 20);
+  });
+  for (const fz of [-47.5, 47.5]) {
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(bl, 44), new THREE.MeshBasicMaterial({ map: front }));
+    face.position.set(0, 22, fz);
+    if (fz < 0) face.rotation.y = Math.PI;
+    bld.add(face);
+  }
+  bld.position.set((bx1 + bx2) / 2, 0, (by1 + by2) / 2);
+  bld.rotation.y = -Math.atan2(by2 - by1, bx2 - bx1);
+  worldGroup.add(bld);
 }
 
 // ============================================================ SKIDS & SMOKE
@@ -1127,9 +1217,8 @@ function frame(nowMs) {
   sun.position.set(camLook.x + 380, 760, camLook.z + 230);
   sun.target.position.set(camLook.x, 0, camLook.z);
 
-  // ---- effects + crowd ----
+  // ---- effects ----
   updateSmoke(dt);
-  if ((hudTick & 1) === 0) animateCrowd(nowMs / 1000, camLook.x, camLook.z);
 
   // ---- HUD ----
   if (++hudTick % 3 === 0) {

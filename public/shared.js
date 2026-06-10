@@ -3,15 +3,23 @@
 (function (S) {
   'use strict';
 
-  // ---- Track ----------------------------------------------------------------
+  // ---- Track: F1-style circuit ------------------------------------------------
+  // Long main straight into a heavy-braking T1, esses, top straight with a
+  // chicane, then an infield loop back onto the start/finish straight.
   const PTS = [
-    [400, 300], [1000, 220], [1600, 240], [2150, 350], [2400, 750], [2250, 1150],
-    [1900, 1300], [1500, 1200], [1200, 1000], [900, 1100], [800, 1400], [500, 1480],
-    [300, 1200], [250, 800], [300, 480]
+    [500, 2500], [1600, 2550], [2900, 2550], [3700, 2450],  // main straight + kink
+    [4050, 2100], [3950, 1700],                              // T1-T2 complex
+    [3600, 1500], [3750, 1150], [3500, 850],                 // esses
+    [3850, 600], [3400, 330],                                // top-right sweep
+    [2400, 300], [1500, 340],                                // back straight
+    [1100, 520], [800, 330],                                 // chicane
+    [400, 450], [300, 850], [450, 1250],                     // left side
+    [900, 1400], [1300, 1300], [1500, 1600],                 // infield loop
+    [1150, 1900], [650, 1950], [350, 2200]                   // final corner
   ];
   const PER = 40;            // samples per control point
-  const HALF_W = 58;         // half road width (px)
-  const WORLD = { w: 2700, h: 1750 };
+  const HALF_W = 64;         // half road width (px) — F1 tracks are wide
+  const WORLD = { w: 4400, h: 2900 };
 
   function cr(p0, p1, p2, p3, t) {
     const t2 = t * t, t3 = t2 * t;
@@ -71,11 +79,11 @@
 
   // ---- Car physics ----------------------------------------------------------
   const CFG = {
-    engine: 920,      // forward accel (px/s^2)
+    engine: 980,      // forward accel (px/s^2)
     reverse: 360,
-    brake: 1500,
-    dragK: 0.0026,    // quadratic aero drag
-    rollK: 1.6,       // rolling resistance
+    brake: 1600,
+    dragK: 0.0023,    // quadratic aero drag
+    rollK: 1.5,       // rolling resistance
     grip: 9.0,        // lateral tyre grip on tarmac
     gripHand: 2.4,    // grip with handbrake (drift)
     grassGrip: 3.4,
