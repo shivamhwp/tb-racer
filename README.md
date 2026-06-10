@@ -31,7 +31,9 @@ in `wrangler.jsonc`. To change the password in prod:
 - The first player in a room is the **host**: picks **Contact** /
   **Non-contact**, lap count, and starts the race.
 - Drive with **WASD / arrow keys**, **SPACE** = handbrake (drift), **M** = mute,
-  **C** = camera (chase / close / high).
+  **C** = camera (chase / close / high), **F** = fullscreen.
+- The **Leave** button (top right) exits to the join screen from anywhere —
+  lobby, mid-race, or results. Host leaves → the next player becomes host.
 - Other players' cars render at reduced opacity; in non-contact mode they are
   ghosts (no collisions).
 - Players joining mid-race spectate automatically and race the next round.

@@ -16,7 +16,8 @@ const ui = {
   join: $('join'), name: $('nameInput'), room: $('roomInput'), joinRacer: $('joinRacer'), joinSpec: $('joinSpec'),
   lobby: $('lobby'), lobbyTitle: $('lobbyTitle'), playerList: $('playerList'), modeSeg: $('modeSeg'), lapsSeg: $('lapsSeg'),
   roleBtn: $('roleBtn'), startBtn: $('startBtn'), lobbyHint: $('lobbyHint'),
-  results: $('results'), resultsList: $('resultsList'), lobbyBtn: $('lobbyBtn'), resultsHint: $('resultsHint')
+  results: $('results'), resultsList: $('resultsList'), lobbyBtn: $('lobbyBtn'), resultsHint: $('resultsHint'),
+  fsBtn: $('fsBtn'), leaveBtn: $('leaveBtn')
 };
 
 // ---- State ----
@@ -950,6 +951,7 @@ function updatePanels() {
   ui.lobby.classList.toggle('hidden', !(joined && st === 'lobby'));
   ui.results.classList.toggle('hidden', !(joined && st === 'finished'));
   ui.hud.classList.toggle('hidden', !(joined && (st === 'racing' || st === 'countdown')));
+  ui.leaveBtn.classList.toggle('hidden', !joined);
   mini.style.display = joined && st !== 'lobby' ? 'block' : 'none';
 
   const me = meta.players.find(p => p.id === myId);
@@ -1024,6 +1026,36 @@ ui.roleBtn.onclick = () => send({ t: 'role', role: myRole === 'racer' ? 'spectat
 ui.startBtn.onclick = () => send({ t: 'start' });
 ui.lobbyBtn.onclick = () => send({ t: 'lobby' });
 
+// ---- leave the game (back to the join screen; server cleans up on close) ----
+function leaveGame() {
+  const me = meta.players.find(p => p.id === myId);
+  if (meta.state === 'racing' && me && me.racing && !confirm('Leave the race?')) return;
+  if (ws) { ws.onclose = null; ws.onerror = null; try { ws.close(); } catch (e) {} ws = null; }
+  myId = null; myRole = null; myCar = null; myPrev = null;
+  pending = []; snaps = []; latest = null; haveOffset = false; racing = false;
+  meta = { state: 'lobby', mode: 'contact', laps: 3, host: null, players: [] };
+  for (const obj of carObjs.values()) obj.dispose();
+  carObjs.clear();
+  clearSkids();
+  ui.banner.classList.add('hidden');
+  ui.countdown.classList.add('hidden');
+  updatePanels();
+}
+ui.leaveBtn.onclick = leaveGame;
+
+// ---- fullscreen toggle ----
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  } else {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
+ui.fsBtn.onclick = toggleFullscreen;
+document.addEventListener('fullscreenchange', () => {
+  ui.fsBtn.textContent = document.fullscreenElement ? '⊠' : '⛶';
+});
+
 // ============================================================ INPUT
 const KEYMAP = {
   ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd',
@@ -1033,6 +1065,7 @@ window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'KeyM') { muted = !muted; return; }
   if (e.code === 'KeyC') { camMode = (camMode + 1) % 3; return; }
+  if (e.code === 'KeyF') { toggleFullscreen(); return; }
   const k = KEYMAP[e.code];
   if (k) { keys[k] = 1; e.preventDefault(); }
 });

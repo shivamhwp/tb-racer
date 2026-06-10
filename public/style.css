@@ -44,13 +44,28 @@ html, body {
 #posinfo { left: 150px; }
 
 #modeBadge {
-  position: fixed; top: 14px; right: 16px;
+  position: fixed; top: 56px; right: 16px;
   font-size: 12px; font-weight: 700; letter-spacing: .08em;
   background: rgba(10, 14, 22, .55);
   padding: 8px 12px; border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, .12);
   color: #ffd166;
 }
+
+#toolbar {
+  position: fixed; top: 14px; right: 16px;
+  display: flex; gap: 8px; z-index: 20;
+}
+#toolbar button {
+  padding: 8px 12px;
+  background: rgba(10, 14, 22, .65);
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 10px;
+  color: #dde4f0; font-size: 13px; font-weight: 700;
+  cursor: pointer;
+}
+#toolbar button:hover { background: rgba(30, 38, 56, .85); }
+#leaveBtn { color: #ff8585 !important; }
 
 #banner {
   position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
@@ -70,7 +85,7 @@ html, body {
 #countdown.go { color: #2ed573; }
 
 #muteHint {
-  position: fixed; right: 16px; top: 52px;
+  position: fixed; right: 16px; top: 94px;
   font-size: 11px; color: rgba(255, 255, 255, .5);
 }
 
