@@ -394,53 +394,6 @@ for (let i = 0; i < N; i++) {
   }
 }
 
-// trees (instanced)
-{
-  const treePos = [];
-  // F1 venues are open — keep trees well clear of the racing surface
-  for (let t = 0; t < 130; t++) {
-    const x = 60 + rng() * (WORLD.w - 120), y = 60 + rng() * (WORLD.h - 120);
-    if (S.nearestIdx(x, y, -1, 0).d2 < (HALF_W + 260) * (HALF_W + 260)) continue;
-    treePos.push([x, y, 0.7 + rng() * 0.8]);
-  }
-  // outer ring of trees beyond the circuit
-  for (let t = 0; t < 130; t++) {
-    const a = rng() * Math.PI * 2, r = 2100 + rng() * 900;
-    const x = WORLD.w / 2 + Math.cos(a) * r, y = WORLD.h / 2 + Math.sin(a) * r;
-    if (S.nearestIdx(x, y, -1, 0).d2 < (HALF_W + 260) * (HALF_W + 260)) continue;
-    treePos.push([x, y, 1 + rng() * 1.3]);
-  }
-  const trunkG = new THREE.CylinderGeometry(2.2, 3, 18, 6);
-  const leafG = new THREE.IcosahedronGeometry(16, 0);
-  const trunks = new THREE.InstancedMesh(trunkG, new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 }), treePos.length);
-  const leaves = new THREE.InstancedMesh(leafG, new THREE.MeshStandardMaterial({ color: 0x2e6b35, roughness: 1, flatShading: true }), treePos.length);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
-  const col = new THREE.Color();
-  treePos.forEach(([x, y, s], i) => {
-    q.setFromEuler(new THREE.Euler(0, rng() * 6.28, 0));
-    p.set(x, 9 * s, y); sc.set(s, s, s);
-    m.compose(p, q, sc); trunks.setMatrixAt(i, m);
-    p.set(x, (18 + 10) * s, y);
-    m.compose(p, q, sc); leaves.setMatrixAt(i, m);
-    leaves.setColorAt(i, col.setHSL(0.32 + rng() * 0.06, 0.45 + rng() * 0.2, 0.28 + rng() * 0.12));
-  });
-  leaves.castShadow = true;
-  worldGroup.add(trunks, leaves);
-}
-
-// distant hills
-{
-  const hillMat = new THREE.MeshStandardMaterial({ color: 0x55795a, roughness: 1, flatShading: true });
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2 + rng() * 0.3;
-    const r = 2600 + rng() * 700;
-    const h = new THREE.Mesh(new THREE.IcosahedronGeometry(420 + rng() * 380, 1), hillMat);
-    h.position.set(WORLD.w / 2 + Math.cos(a) * r, -140 - rng() * 80, WORLD.h / 2 + Math.sin(a) * r);
-    h.scale.y = 0.55 + rng() * 0.3;
-    scene.add(h);
-  }
-}
-
 // ---- F1 trackside: runoff paint, gravel traps, tyre stacks, grandstands, pits ----
 
 // quad-strip beside the track. quads = array of [sampleIdx, side, offsetFrom, offsetTo]
@@ -485,7 +438,7 @@ function outerSide(i) {
       blue.push([i, side, HALF_W + 46, HALF_W + 59]);
       red.push([i, side, HALF_W + 59, HALF_W + 72]);
     }
-    if (curva[i] > 0.085) gravel.push([i, outerSide(i), HALF_W + 72, HALF_W + 150]);
+    if (curva[i] > 0.085) gravel.push([i, outerSide(i), HALF_W + 72, HALF_W + 135]);
   }
   ribbonMesh(runoff, 0x74767a, 0.16);
   ribbonMesh(blue, 0x1c54bd, 0.2);
@@ -521,43 +474,90 @@ function outerSide(i) {
 }
 
 {
-  // empty grandstands with brightly painted seating decks at major corners
-  const seatCols = [0xd23b3b, 0x2d63c8, 0xe0a32e, 0x3c9e57];
+  // grandstands ringing the whole circuit, filled with empty chairs —
+  // a grand prix venue with nobody in the seats
   const structMat = new THREE.MeshStandardMaterial({ color: 0x3a414e, roughness: 0.85 });
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x2b303a, roughness: 0.9 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0xe2e6ec, roughness: 0.55, metalness: 0.35 });
+  const standCols = [0xd23b3b, 0x2d63c8, 0xe0a32e, 0x3c9e57, 0x8a4fd0, 0x21a8a0];
+  const cx0 = WORLD.w / 2, cy0 = WORLD.h / 2;
+  const ROWS = 4, CHAIRS = 18, CHAIR_GAP = 12;
+  const seatPos = [], seatCol = [];
+
   let last = -1e9, built = 0;
-  for (let i = 0; i < N && built < 8; i++) {
-    if (curva[i] < 0.05 || i - last < 100) continue;
-    const side = outerSide(i);
+  for (let i = 0; i < N && built < 30; i++) {
+    if (i - last < 38) continue;
     const s = SAM[i];
+    // stands always sit on the outside of the circuit
+    const side = ((-s.dy) * (s.x - cx0) + s.dx * (s.y - cy0)) > 0 ? 1 : -1;
     const nx = -s.dy * side, ny = s.dx * side;
-    const cx = s.x + nx * (HALF_W + 205), cy = s.y + ny * (HALF_W + 205);
-    if (cx < 80 || cy < 80 || cx > WORLD.w - 80 || cy > WORLD.h - 80) continue;
-    if (S.nearestIdx(cx, cy, i, 120).d2 < (HALF_W + 170) * (HALF_W + 170)) continue;
+    const sx = s.x + nx * (HALF_W + 195), sy = s.y + ny * (HALF_W + 195);
+    if (sx < 90 || sy < 90 || sx > WORLD.w - 90 || sy > WORLD.h - 90) continue;
+    if (S.nearestIdx(sx, sy, i, 140).d2 < (HALF_W + 165) * (HALF_W + 165)) continue;
     last = i; built++;
+
     const g = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.BoxGeometry(220, 5, 78), structMat);
-    base.position.set(0, 2.5, 32);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(224, 5, 80), structMat);
+    base.position.set(0, 2.5, 33);
     g.add(base);
-    for (let row = 0; row < 4; row++) {
-      const deck = new THREE.Mesh(new THREE.BoxGeometry(216, 6.5, 17),
-        new THREE.MeshStandardMaterial({ color: seatCols[(built + row) % 4], roughness: 0.9 }));
+    for (let row = 0; row < ROWS; row++) {
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(220, 6.5, 17), deckMat);
       deck.position.set(0, 5 + row * 6.5 + 3.25, row * 17);
       deck.castShadow = deck.receiveShadow = true;
       g.add(deck);
     }
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(228, 3, 86), roofMat);
-    roof.position.set(0, 58, 30);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(230, 3, 88), roofMat);
+    roof.position.set(0, 58, 31);
     roof.castShadow = true;
     g.add(roof);
-    for (const ox of [-104, 104]) for (const oz of [62]) {
+    for (const ox of [-106, 106]) {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 56, 6), structMat);
-      pole.position.set(ox, 28, oz);
+      pole.position.set(ox, 28, 64);
       g.add(pole);
     }
-    g.position.set(cx, 0, cy);
+    g.position.set(sx, 0, sy);
     g.rotation.y = -Math.atan2(ny, nx) + Math.PI / 2;
     worldGroup.add(g);
+
+    // rows of empty chairs on the decks, one colour per stand
+    const color = standCols[built % standCols.length];
+    const yawQ = Math.atan2(nx, ny); // chair +Z points outward, so it faces the track
+    for (let row = 0; row < ROWS; row++) {
+      const deckTop = 5 + row * 6.5 + 6.5;
+      for (let k = 0; k < CHAIRS; k++) {
+        const along = (k - (CHAIRS - 1) / 2) * CHAIR_GAP;
+        seatPos.push([
+          sx + s.dx * along + nx * row * 17,
+          deckTop,
+          sy + s.dy * along + ny * row * 17,
+          yawQ
+        ]);
+        seatCol.push(color);
+      }
+    }
+  }
+
+  if (seatPos.length) {
+    const seatG = new THREE.BoxGeometry(8, 1.2, 5.5);
+    seatG.translate(0, 0.6, -0.6);
+    const backG = new THREE.BoxGeometry(8, 6, 1.2);
+    backG.translate(0, 3, 2.6);
+    const seats = new THREE.InstancedMesh(seatG, new THREE.MeshStandardMaterial({ roughness: 0.85 }), seatPos.length);
+    const backs = new THREE.InstancedMesh(backG, new THREE.MeshStandardMaterial({ roughness: 0.85 }), seatPos.length);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+    const col = new THREE.Color(), e = new THREE.Euler();
+    seatPos.forEach(([x, y, z, yaw], k) => {
+      e.set(0, yaw, 0);
+      q.setFromEuler(e);
+      v.set(x, y, z);
+      m.compose(v, q, one);
+      seats.setMatrixAt(k, m);
+      backs.setMatrixAt(k, m);
+      col.setHex(seatCol[k]).offsetHSL(0, 0, (rng() - 0.5) * 0.06);
+      seats.setColorAt(k, col);
+      backs.setColorAt(k, col);
+    });
+    worldGroup.add(seats, backs);
   }
 }
 

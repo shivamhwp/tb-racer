@@ -19,7 +19,7 @@
     [1150, 1900], [650, 1950], [350, 2200]                   // final corner
   ].map(p => [p[0] * SCALE, p[1] * SCALE]);
   const PER = 40;            // samples per control point
-  const HALF_W = 78;         // half road width (px) — wide, F1 spec
+  const HALF_W = 88;         // half road width (px) — very wide, fits 4 cars abreast
   const WORLD = { w: 5000, h: 3300 };
 
   function cr(p0, p1, p2, p3, t) {
@@ -179,13 +179,14 @@
     return true;
   }
 
-  // Starting grid: tight F1-style two-column grid just past the start line
-  // (so lap 1 counts after a full circuit). Everyone lines up together.
+  // Starting grid: 4 cars abreast, 2 rows — everyone starts together at the
+  // line (lap 1 counts after a full circuit).
   function gridPose(slot) {
-    const row = Math.floor(slot / 2);
-    const i = (14 + row * 3 + (slot % 2 ? 0 : 1)) % N; // left column slightly ahead
+    const row = Math.floor(slot / 4);
+    const col = slot % 4;
+    const i = (16 + row * 3 + (col % 2)) % N; // tiny stagger within the row
     const s = SAM[i];
-    const side = (slot % 2 ? 1 : -1) * 26;
+    const side = (col - 1.5) * 38; // -57, -19, +19, +57 across the road
     return {
       x: s.x - s.dy * side,
       y: s.y + s.dx * side,
