@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <title>TB Racer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <canvas id="minimap" width="230" height="160"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="speed"><span id="speedVal">0</span><small> km/h</small></div>
+    <div id="lapinfo">LAP <span id="lapVal">1/3</span></div>
+    <div id="posinfo">P<span id="posVal">1</span></div>
+    <div id="modeBadge"></div>
+  </div>
+
+  <div id="banner" class="hidden"></div>
+  <div id="countdown" class="hidden"></div>
+  <div id="muteHint">M — sound on/off</div>
+
+  <!-- Join screen -->
+  <div id="join" class="panel">
+    <h1>🏁 TB Racer</h1>
+    <p class="sub">Multiplayer circuit racing</p>
+    <input id="nameInput" maxlength="16" placeholder="Your name" autocomplete="off">
+    <div class="row">
+      <button id="joinRacer" class="primary">Join as Racer</button>
+      <button id="joinSpec">Watch as Spectator</button>
+    </div>
+    <p class="hint">Drive with WASD / arrows · SPACE = handbrake (drift) · C = camera</p>
+  </div>
+
+  <!-- Lobby -->
+  <div id="lobby" class="panel hidden">
+    <h1>Lobby</h1>
+    <div id="playerList"></div>
+    <div class="settings">
+      <div class="setting">
+        <label>Race type</label>
+        <div class="seg" id="modeSeg">
+          <button data-mode="contact">Contact</button>
+          <button data-mode="nocontact">Non-contact</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Laps</label>
+        <div class="seg" id="lapsSeg">
+          <button data-laps="1">1</button>
+          <button data-laps="3">3</button>
+          <button data-laps="5">5</button>
+          <button data-laps="10">10</button>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <button id="roleBtn">Switch to Spectator</button>
+      <button id="startBtn" class="primary">Start Race</button>
+    </div>
+    <p class="hint" id="lobbyHint"></p>
+  </div>
+
+  <!-- Results -->
+  <div id="results" class="panel hidden">
+    <h1>🏆 Results</h1>
+    <div id="resultsList"></div>
+    <div class="row">
+      <button id="lobbyBtn" class="primary">Back to Lobby</button>
+    </div>
+    <p class="hint" id="resultsHint"></p>
+  </div>
+
+  <script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
+  <script src="/shared.js"></script>
+  <script type="module" src="/client3d.js"></script>
+</body>
+</html>

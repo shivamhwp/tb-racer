@@ -1,0 +1,16 @@
+{
+  "name": "tb-racer",
+  "version": "1.0.0",
+  "description": "Password-gated multiplayer car racing game over WebSockets",
+  "main": "server.js",
+  "scripts": {
+    "start": "bun server.js"
+  },
+  "dependencies": {
+    "three": "^0.184.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.60.0"
+  }
+}
