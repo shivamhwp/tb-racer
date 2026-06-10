@@ -27,10 +27,24 @@
   <div id="countdown" class="hidden"></div>
   <div id="toolbar">
     <button id="muteBtn" title="Sound (M)"></button>
+    <button id="camBtn" title="Camera (C)"></button>
     <button id="fsBtn" title="Fullscreen (F)"></button>
     <button id="leaveBtn" class="hidden" title="Leave the game">Leave</button>
   </div>
   <div id="muteHint">M sound · F fullscreen · C camera</div>
+
+  <!-- Leave confirmation -->
+  <div id="confirmOverlay" class="hidden">
+    <div class="panel" id="confirmPanel">
+      <div class="kicker">RACE CONTROL</div>
+      <h1>Leave the race?</h1>
+      <p class="confirm-msg">You're mid-race — your progress in this race will be lost.</p>
+      <div class="row">
+        <button id="confirmStay">Keep Racing</button>
+        <button id="confirmLeave" class="danger">Leave Race</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Join screen -->
   <div id="join" class="panel">

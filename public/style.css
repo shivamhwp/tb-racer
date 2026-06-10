@@ -108,6 +108,22 @@ html, body {
 #muteBtn.off { color: #7d8496; border-left-color: #555a66; }
 #leaveBtn { color: #ff8585; border-left-color: #ff8585; }
 #leaveBtn:hover { color: #fff; background: #c8231e; }
+#camBtn .cam-n {
+  font-size: 9px; margin-left: 5px; letter-spacing: .12em;
+  color: #ffd166; font-style: italic;
+}
+#camBtn:hover .cam-n { color: #fff; }
+
+/* ---- Leave-confirmation dialog ---- */
+#confirmOverlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(4, 6, 10, .62);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+}
+#confirmPanel { width: 380px; }
+.confirm-msg { color: #9aa0ae; font-size: 13px; text-align: left; margin: 6px 0 8px; line-height: 1.5; }
+.panel button.danger { background: #c8231e; border-color: #c8231e; color: #fff; }
+.panel button.danger:hover { background: #e10600; }
 
 #banner {
   position: fixed; top: 60px; left: 50%; transform: translateX(-50%);

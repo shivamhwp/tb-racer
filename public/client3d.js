@@ -17,7 +17,8 @@ const ui = {
   lobby: $('lobby'), lobbyTitle: $('lobbyTitle'), playerList: $('playerList'), modeSeg: $('modeSeg'), lapsSeg: $('lapsSeg'),
   roleBtn: $('roleBtn'), startBtn: $('startBtn'), lobbyHint: $('lobbyHint'),
   results: $('results'), resultsList: $('resultsList'), lobbyBtn: $('lobbyBtn'), resultsHint: $('resultsHint'),
-  fsBtn: $('fsBtn'), muteBtn: $('muteBtn'), leaveBtn: $('leaveBtn'),
+  fsBtn: $('fsBtn'), muteBtn: $('muteBtn'), camBtn: $('camBtn'), leaveBtn: $('leaveBtn'),
+  confirmOverlay: $('confirmOverlay'), confirmStay: $('confirmStay'), confirmLeave: $('confirmLeave'),
   curLapT: $('curLapT'), lastLapT: $('lastLapT'), bestLapT: $('bestLapT'), lapFlash: $('lapFlash')
 };
 
@@ -1100,6 +1101,7 @@ function updatePanels() {
   ui.results.classList.toggle('hidden', !(joined && st === 'finished'));
   ui.hud.classList.toggle('hidden', !(joined && (st === 'racing' || st === 'countdown')));
   ui.leaveBtn.classList.toggle('hidden', !joined);
+  if (st !== 'racing') ui.confirmOverlay.classList.add('hidden');
   mini.style.display = joined && st !== 'lobby' ? 'block' : 'none';
 
   const me = meta.players.find(p => p.id === myId);
@@ -1177,7 +1179,14 @@ ui.lobbyBtn.onclick = () => send({ t: 'lobby' });
 // ---- leave the game (back to the join screen; server cleans up on close) ----
 function leaveGame() {
   const me = meta.players.find(p => p.id === myId);
-  if (meta.state === 'racing' && me && me.racing && !confirm('Leave the race?')) return;
+  if (meta.state === 'racing' && me && me.racing) {
+    ui.confirmOverlay.classList.remove('hidden');
+    return;
+  }
+  doLeave();
+}
+function doLeave() {
+  ui.confirmOverlay.classList.add('hidden');
   if (ws) { ws.onclose = null; ws.onerror = null; try { ws.close(); } catch (e) {} ws = null; }
   myId = null; myRole = null; myCar = null; myPrev = null;
   pending = []; snaps = []; latest = null; haveOffset = false; racing = false;
@@ -1192,6 +1201,11 @@ function leaveGame() {
   updatePanels();
 }
 ui.leaveBtn.onclick = leaveGame;
+ui.confirmLeave.onclick = doLeave;
+ui.confirmStay.onclick = () => ui.confirmOverlay.classList.add('hidden');
+ui.confirmOverlay.addEventListener('click', e => {
+  if (e.target === ui.confirmOverlay) ui.confirmOverlay.classList.add('hidden');
+});
 
 // ---- toolbar icons: bold arcade-style strokes, drawn inline ----
 const ICON = {
@@ -1204,12 +1218,18 @@ const ICON = {
     <path d="M15.5 8.6a4.6 4.6 0 0 1 0 6.8M18.3 6a8.6 8.6 0 0 1 0 12" fill="none" stroke-width="2.6" stroke-linecap="round"/></svg>`,
   sndOff: `<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" stroke="currentColor" stroke-linejoin="round">
     <path d="M3.5 9.5v5H7l5 4.5v-14L7 9.5H3.5z" stroke-width="1.6"/>
-    <path d="M15.5 9.5l6 6M21.5 9.5l-6 6" fill="none" stroke-width="2.8" stroke-linecap="round"/></svg>`
+    <path d="M15.5 9.5l6 6M21.5 9.5l-6 6" fill="none" stroke-width="2.8" stroke-linecap="round"/></svg>`,
+  cam: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M3 7.5h4.2L9.2 5h5.6l2 2.5H21v11H3z"/>
+    <circle cx="12" cy="12.7" r="3.4"/></svg>`
 };
+const CAM_NAMES = ['CHASE', 'CLOSE', 'HIGH'];
 function syncIcons() {
   ui.fsBtn.innerHTML = document.fullscreenElement ? ICON.fsExit : ICON.fsEnter;
   ui.muteBtn.innerHTML = muted ? ICON.sndOff : ICON.sndOn;
   ui.muteBtn.classList.toggle('off', muted);
+  ui.camBtn.innerHTML = ICON.cam + `<span class="cam-n">${CAM_NAMES[camMode]}</span>`;
+  ui.camBtn.title = `Camera: ${CAM_NAMES[camMode].toLowerCase()} (C)`;
 }
 
 function toggleFullscreen() {
@@ -1223,8 +1243,13 @@ function toggleMute() {
   muted = !muted;
   syncIcons();
 }
+function cycleCam() {
+  camMode = (camMode + 1) % 3;
+  syncIcons();
+}
 ui.fsBtn.onclick = toggleFullscreen;
 ui.muteBtn.onclick = toggleMute;
+ui.camBtn.onclick = cycleCam;
 document.addEventListener('fullscreenchange', syncIcons);
 syncIcons();
 
@@ -1236,8 +1261,11 @@ const KEYMAP = {
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'KeyM') { toggleMute(); return; }
-  if (e.code === 'KeyC') { camMode = (camMode + 1) % 3; return; }
+  if (e.code === 'KeyC') { cycleCam(); return; }
   if (e.code === 'KeyF') { toggleFullscreen(); return; }
+  if (e.code === 'Escape' && !ui.confirmOverlay.classList.contains('hidden')) {
+    ui.confirmOverlay.classList.add('hidden'); return;
+  }
   const k = KEYMAP[e.code];
   if (k) { keys[k] = 1; e.preventDefault(); }
 });
