@@ -36,6 +36,7 @@ class RoomCore {
   }
 
   sendMeta() {
+    if (this.onRoster) { try { this.onRoster(this); } catch (e) {} }
     this.broadcast({
       t: 'meta',
       room: this.name,
@@ -78,6 +79,7 @@ class RoomCore {
 
   endRace() {
     this.game.state = 'finished';
+    this.game.finishedAt = Date.now();
     const racers = [...this.players.values()].filter(p => p.car);
     racers.sort(this.rankCmp);
     this.broadcast({
@@ -178,9 +180,20 @@ class RoomCore {
     }
   }
 
+  // true while the room actually needs the 60Hz loop
+  get needsTick() {
+    return this.players.size > 0 && this.game.state !== 'lobby';
+  }
+
   tick(now) {
     this.tickNo++;
     const game = this.game;
+
+    // nobody clicked "back to lobby" — return automatically so the loop can stop
+    if (game.state === 'finished' && game.finishedAt && now - game.finishedAt > 90000) {
+      this.toLobby();
+      return;
+    }
 
     if (game.state === 'countdown' && now >= game.countdownEnd) {
       game.state = 'racing';

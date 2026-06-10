@@ -27,17 +27,18 @@ html, body {
 
 #speed {
   position: fixed; left: 20px; bottom: 16px;
-  font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums;
+  font-size: 44px; font-weight: 900; font-style: italic; font-variant-numeric: tabular-nums;
   text-shadow: 0 2px 8px rgba(0, 0, 0, .6);
 }
 #speed small { font-size: 16px; font-weight: 600; color: #c7d0e0; }
 
 #lapinfo, #posinfo {
   position: fixed; top: 14px;
-  font-size: 20px; font-weight: 800;
-  background: rgba(10, 14, 22, .55);
-  padding: 8px 14px; border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, .12);
+  font-size: 20px; font-weight: 800; font-style: italic;
+  background: rgba(8, 8, 12, .65);
+  padding: 8px 14px; border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-left: 3px solid #e10600;
   font-variant-numeric: tabular-nums;
 }
 #lapinfo { left: 16px; }
@@ -89,35 +90,44 @@ html, body {
   font-size: 11px; color: rgba(255, 255, 255, .5);
 }
 
-/* ---- Panels ---- */
+/* ---- Panels: pointy F1-menu style ---- */
 .panel {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: 420px; max-width: calc(100vw - 32px);
-  background: rgba(16, 21, 33, .94);
-  border: 1px solid #2a3550;
-  border-radius: 16px;
-  padding: 28px 30px;
+  width: 430px; max-width: calc(100vw - 32px);
+  background: linear-gradient(165deg, rgba(13, 13, 19, .96), rgba(18, 18, 26, .96));
+  border: 1px solid #23232d;
+  border-left: 5px solid #e10600;
+  border-radius: 0;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%);
+  padding: 28px 32px 34px;
   box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
   text-align: center;
 }
-.panel h1 { font-size: 24px; margin-bottom: 4px; }
-.panel .sub { color: #8b96ab; font-size: 13px; margin-bottom: 20px; }
-.panel input {
-  width: 100%; padding: 12px; margin-bottom: 14px;
-  border-radius: 9px; border: 1px solid #2c3850;
-  background: #0d1320; color: #fff; font-size: 15px; outline: none;
+.kicker { font-size: 10px; letter-spacing: .4em; color: #e10600; font-weight: 800; text-align: left; }
+.panel h1 {
+  font-size: 27px; margin-bottom: 2px;
+  font-weight: 900; font-style: italic; letter-spacing: .02em; text-transform: uppercase;
+  text-align: left;
 }
-.panel input:focus { border-color: #4d7cfe; }
+.panel .sub { color: #7d7d8c; font-size: 11px; letter-spacing: .28em; margin-bottom: 20px; text-align: left; }
+.panel input {
+  width: 100%; padding: 12px 14px; margin-bottom: 12px;
+  border-radius: 0; border: 1px solid #26262f; border-left: 3px solid #e10600;
+  background: #0a0a10; color: #fff; font-size: 15px; outline: none; letter-spacing: .04em;
+}
+.panel input:focus { border-color: #e10600; }
 .panel .row { display: flex; gap: 10px; margin-top: 14px; }
 .panel button {
-  flex: 1; padding: 12px 10px; border: 1px solid #2c3850; border-radius: 9px;
-  background: #1a2336; color: #dde4f0; font-size: 14px; font-weight: 600; cursor: pointer;
+  flex: 1; padding: 12px 10px; border: 1px solid #2a2a35; border-radius: 0;
+  background: #16161e; color: #dde4f0; font-size: 12px; font-weight: 800;
+  font-style: italic; text-transform: uppercase; letter-spacing: .1em; cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
 }
-.panel button:hover { background: #222d46; }
-.panel button.primary { background: #4d7cfe; border-color: #4d7cfe; color: #fff; }
-.panel button.primary:hover { background: #3d6cf0; }
+.panel button:hover { background: #20202b; }
+.panel button.primary { background: #e10600; border-color: #e10600; color: #fff; }
+.panel button.primary:hover { background: #ff1a14; }
 .panel button:disabled { opacity: .4; cursor: default; }
-.hint { color: #76819a; font-size: 12px; margin-top: 14px; }
+.hint { color: #6d6d7c; font-size: 11px; margin-top: 14px; letter-spacing: .04em; }
 
 /* ---- Lobby ---- */
 #playerList { margin: 14px 0 6px; text-align: left; max-height: 200px; overflow-y: auto; }
@@ -134,8 +144,8 @@ html, body {
 .setting { flex: 1; text-align: left; }
 .setting label { font-size: 11px; font-weight: 700; color: #8b96ab; letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 6px; }
 .seg { display: flex; gap: 4px; }
-.seg button { padding: 8px 6px; font-size: 12px; }
-.seg button.on { background: #4d7cfe; border-color: #4d7cfe; color: #fff; }
+.seg button { padding: 8px 6px; font-size: 11px; }
+.seg button.on { background: #e10600; border-color: #e10600; color: #fff; }
 
 /* ---- Results ---- */
 #resultsList { margin: 16px 0 4px; text-align: left; }

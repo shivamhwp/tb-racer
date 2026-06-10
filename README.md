@@ -21,8 +21,18 @@ bunx wrangler deploy
 ```
 
 Static assets, the login gate, and one Durable Object per room are configured
-in `wrangler.jsonc`. To change the password in prod:
-`bunx wrangler secret put RACE_PASSWORD`.
+in `wrangler.jsonc`. To change the passwords in prod:
+`bunx wrangler secret put RACE_PASSWORD` and
+`bunx wrangler secret put ADMIN_PASSWORD`.
+
+## Admin (race control)
+
+`/admin` — separate login using `ADMIN_PASSWORD` (env var; local default
+`adminobsidian`). Shows every active room with its state and players, and a
+**Close room** button that disconnects everyone and frees the room's compute.
+Rooms also conserve compute automatically: the 60Hz simulation loop only runs
+while a race is in progress (lobbies are idle), and a finished race returns to
+the lobby by itself after 90s.
 
 ## Play
 

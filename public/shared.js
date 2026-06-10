@@ -6,6 +6,7 @@
   // ---- Track: F1-style circuit ------------------------------------------------
   // Long main straight into a heavy-braking T1, esses, top straight with a
   // chicane, then an infield loop back onto the start/finish straight.
+  const SCALE = 1.13;
   const PTS = [
     [500, 2500], [1600, 2550], [2900, 2550], [3700, 2450],  // main straight + kink
     [4050, 2100], [3950, 1700],                              // T1-T2 complex
@@ -16,10 +17,10 @@
     [400, 450], [300, 850], [450, 1250],                     // left side
     [900, 1400], [1300, 1300], [1500, 1600],                 // infield loop
     [1150, 1900], [650, 1950], [350, 2200]                   // final corner
-  ];
+  ].map(p => [p[0] * SCALE, p[1] * SCALE]);
   const PER = 40;            // samples per control point
-  const HALF_W = 64;         // half road width (px) — F1 tracks are wide
-  const WORLD = { w: 4400, h: 2900 };
+  const HALF_W = 78;         // half road width (px) — wide, F1 spec
+  const WORLD = { w: 5000, h: 3300 };
 
   function cr(p0, p1, p2, p3, t) {
     const t2 = t * t, t3 = t2 * t;
@@ -178,12 +179,13 @@
     return true;
   }
 
-  // Starting grid: staggered 2-wide just past the start line (so lap 1 counts
-  // after a full circuit).
+  // Starting grid: tight F1-style two-column grid just past the start line
+  // (so lap 1 counts after a full circuit). Everyone lines up together.
   function gridPose(slot) {
-    const i = (12 + slot * 9) % N;
+    const row = Math.floor(slot / 2);
+    const i = (14 + row * 3 + (slot % 2 ? 0 : 1)) % N; // left column slightly ahead
     const s = SAM[i];
-    const side = (slot % 2 ? 1 : -1) * 20;
+    const side = (slot % 2 ? 1 : -1) * 26;
     return {
       x: s.x - s.dy * side,
       y: s.y + s.dx * side,
