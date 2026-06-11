@@ -7,8 +7,9 @@ const { WebSocketServer } = require('ws');
 const { RoomCore } = require('./game/room.js');
 
 const PORT = process.env.PORT || 3000;
-// No passwords by default: the game and /admin are open unless these are set.
-const PASSWORD = process.env.RACE_PASSWORD || '';
+// The site is password-gated; the default access code lives here in the code.
+// /admin is open unless ADMIN_PASSWORD is set.
+const PASSWORD = process.env.RACE_PASSWORD || 'theolovesobsidian';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 // ---- Auth: stateless signed tokens --------------------------------------------

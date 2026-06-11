@@ -1,9 +1,9 @@
-/* Cloudflare Worker entry. Optionally auth-gates everything (pages, assets,
-   WebSockets) when the RACE_PASSWORD secret is set — open otherwise. Routes
-   /ws/<room> to a Durable Object running the same RoomCore simulation as the
-   local server, and exposes /admin (gated by the ADMIN_PASSWORD secret when
-   set) with a live room registry + the ability to close rooms and free their
-   compute. Deploy with: bunx wrangler deploy */
+/* Cloudflare Worker entry. Auth-gates everything (pages, assets, WebSockets)
+   behind the access code below (override with the RACE_PASSWORD secret).
+   Routes /ws/<room> to a Durable Object running the same RoomCore simulation
+   as the local server, and exposes /admin (gated by the ADMIN_PASSWORD secret
+   when set) with a live room registry + the ability to close rooms and free
+   their compute. Deploy with: bunx wrangler deploy */
 import { RoomCore } from './game/room.js';
 
 const LOGIN_HTML = `<!doctype html><html><head><meta charset="utf-8">
@@ -227,9 +227,10 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     const p = url.pathname;
-    // No passwords by default: the game and /admin are open unless the
-    // RACE_PASSWORD / ADMIN_PASSWORD secrets are set.
-    const pw = env.RACE_PASSWORD || '';
+    // The site is password-gated; the default access code lives here in the
+    // code (override with the RACE_PASSWORD secret). /admin is open unless
+    // the ADMIN_PASSWORD secret is set.
+    const pw = env.RACE_PASSWORD || 'theolovesobsidian';
     const apw = env.ADMIN_PASSWORD || '';
 
     if (p === '/favicon.ico') return new Response(null, { status: 204 });
