@@ -1,0 +1,11 @@
+// Cloudflare Pages front for the tb-racer Worker.
+// Pages cannot define Durable Objects, so the game stays in the Worker
+// (worker.js at the repo root); this project just gives it a pages.dev URL
+// by passing every request — including WebSocket upgrades — through a
+// service binding.
+{
+  "name": "tbracer",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-06-01",
+  "services": [{ "binding": "GAME", "service": "tb-racer" }]
+}
