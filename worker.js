@@ -1,8 +1,9 @@
-/* Cloudflare Worker entry. Auth-gates everything (pages, assets, WebSockets),
-   routes /ws/<room> to a Durable Object running the same RoomCore simulation
-   as the local server, and exposes /admin (ADMIN_PASSWORD env) with a live
-   room registry + the ability to close rooms and free their compute.
-   Deploy with: bunx wrangler deploy */
+/* Cloudflare Worker entry. Optionally auth-gates everything (pages, assets,
+   WebSockets) when the RACE_PASSWORD secret is set — open otherwise. Routes
+   /ws/<room> to a Durable Object running the same RoomCore simulation as the
+   local server, and exposes /admin (gated by the ADMIN_PASSWORD secret when
+   set) with a live room registry + the ability to close rooms and free their
+   compute. Deploy with: bunx wrangler deploy */
 import { RoomCore } from './game/room.js';
 
 const LOGIN_HTML = `<!doctype html><html><head><meta charset="utf-8">
@@ -226,13 +227,16 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     const p = url.pathname;
-    const pw = env.RACE_PASSWORD || 'theolovesobsidian';
-    const apw = env.ADMIN_PASSWORD || 'adminobsidian';
+    // No passwords by default: the game and /admin are open unless the
+    // RACE_PASSWORD / ADMIN_PASSWORD secrets are set.
+    const pw = env.RACE_PASSWORD || '';
+    const apw = env.ADMIN_PASSWORD || '';
 
     if (p === '/favicon.ico') return new Response(null, { status: 204 });
 
     // ---- admin (own auth) ----
     if (p === '/admin/auth' && req.method === 'POST') {
+      if (!apw) return new Response(null, { status: 302, headers: { Location: '/admin' } });
       const attempt = new URLSearchParams(await req.text()).get('password') || '';
       if (await pwMatch(attempt, apw)) {
         return new Response(null, {
@@ -246,14 +250,14 @@ export default {
       return new Response(null, { status: 302, headers: { Location: '/admin?bad=1' } });
     }
     if (p === '/admin') {
-      const ok = await checkToken(getCookie(req, 'adm'), apw, 'adm.');
+      const ok = !apw || await checkToken(getCookie(req, 'adm'), apw, 'adm.');
       return new Response(
         ok ? ADMIN_DASH_HTML : ADMIN_LOGIN_HTML.replace('{{ERR}}', url.searchParams.get('bad') ? '<div class="err">Wrong admin password.</div>' : ''),
         { headers: { 'Content-Type': 'text/html' } }
       );
     }
     if (p.startsWith('/admin/api/')) {
-      if (!await checkToken(getCookie(req, 'adm'), apw, 'adm.')) return new Response('Unauthorized', { status: 401 });
+      if (apw && !await checkToken(getCookie(req, 'adm'), apw, 'adm.')) return new Response('Unauthorized', { status: 401 });
       if (p === '/admin/api/rooms') {
         return registryStub(env).fetch('https://do/registry/list');
       }
@@ -272,6 +276,7 @@ export default {
 
     // ---- game password gate ----
     if (req.method === 'POST' && p === '/auth') {
+      if (!pw) return new Response(null, { status: 302, headers: { Location: '/' } });
       const attempt = new URLSearchParams(await req.text()).get('password') || '';
       if (await pwMatch(attempt, pw)) {
         return new Response(null, {
@@ -285,7 +290,7 @@ export default {
       return new Response(null, { status: 302, headers: { Location: '/?bad=1' } });
     }
 
-    const authed = await checkToken(getCookie(req, 'sid'), pw, 'tbr.');
+    const authed = !pw || await checkToken(getCookie(req, 'sid'), pw, 'tbr.');
     if (!authed) {
       if (p === '/') {
         return new Response(

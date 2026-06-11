@@ -7,8 +7,9 @@ const { WebSocketServer } = require('ws');
 const { RoomCore } = require('./game/room.js');
 
 const PORT = process.env.PORT || 3000;
-const PASSWORD = process.env.RACE_PASSWORD || 'theolovesobsidian';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminobsidian';
+// No passwords by default: the game and /admin are open unless these are set.
+const PASSWORD = process.env.RACE_PASSWORD || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 // ---- Auth: stateless signed tokens --------------------------------------------
 function sign(key, prefix, exp) {
@@ -36,8 +37,8 @@ function parseCookies(h) {
   });
   return out;
 }
-const authedGame = req => checkToken(parseCookies(req.headers.cookie).sid, PASSWORD, 'tbr.');
-const authedAdmin = req => checkToken(parseCookies(req.headers.cookie).adm, ADMIN_PASSWORD, 'adm.');
+const authedGame = req => !PASSWORD || checkToken(parseCookies(req.headers.cookie).sid, PASSWORD, 'tbr.');
+const authedAdmin = req => !ADMIN_PASSWORD || checkToken(parseCookies(req.headers.cookie).adm, ADMIN_PASSWORD, 'adm.');
 function pwMatch(a, b) {
   const ha = crypto.createHash('sha256').update(a).digest();
   const hb = crypto.createHash('sha256').update(b).digest();
@@ -178,6 +179,7 @@ const server = http.createServer(async (req, res) => {
 
   // ---- admin (own auth, independent of the game password) ----
   if (p === '/admin/auth' && req.method === 'POST') {
+    if (!ADMIN_PASSWORD) { res.writeHead(302, { Location: '/admin' }); return res.end(); }
     const pw = new URLSearchParams(await readBody(req)).get('password') || '';
     if (pwMatch(pw, ADMIN_PASSWORD)) {
       res.writeHead(302, {
@@ -210,6 +212,7 @@ const server = http.createServer(async (req, res) => {
 
   // ---- game password gate ----
   if (req.method === 'POST' && p === '/auth') {
+    if (!PASSWORD) { res.writeHead(302, { Location: '/' }); return res.end(); }
     const pw = new URLSearchParams(await readBody(req)).get('password') || '';
     if (pwMatch(pw, PASSWORD)) {
       res.writeHead(302, {
